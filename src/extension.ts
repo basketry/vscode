@@ -1,43 +1,32 @@
-import { existsSync, readFileSync } from 'fs';
-import { join, sep } from 'path';
-import * as vscode from 'vscode';
 import * as cp from 'child_process';
+import { existsSync, readFileSync } from 'fs';
+import { join, relative, resolve } from 'path';
 
-import type { Violation, Config, CliOutput, BasketryError } from 'basketry';
+import * as vscode from 'vscode';
 
-const workspaces = new Map<string, Workspace>();
-const errorsByWorkspace = new Map<string, BasketryError[]>();
+import type {
+  Violation,
+  Config,
+  CliOutput,
+  BasketryError,
+} from 'basketry/lib/types';
 
+import { isLocalConfig, resolveConfig } from 'basketry/lib/utils';
+
+const STOP_COMMAND = 'basketry-vscode.stop';
+const START_COMMAND = 'basketry-vscode.start';
+const RESTART_COMMAND = 'basketry-vscode.restart';
+const SHOW_ERROR_COMMAND = 'basketry-vscode.showError';
+
+const workers = new Set<Worker>();
+const statusByConfig = new Map<string, WorkerStatus>();
+
+let changeListener: vscode.Disposable | undefined;
 let statusBarItem: vscode.StatusBarItem;
 let channel: vscode.OutputChannel;
+let stopped: boolean = true;
 
-type WorkspaceStatus = 'idle' | 'running' | 'error' | 'violations';
-
-const statusByWorkspace = new Map<string, WorkspaceStatus>();
-
-function updateStatus() {
-  if (!statusByWorkspace.size) {
-    statusBarItem.hide();
-    return;
-  }
-  let icon = '$(pass)';
-  for (const status of statusByWorkspace.values()) {
-    if (status === 'running') icon = '$(loading~spin)';
-    if (status === 'error') icon = '$(error)';
-    if (status === 'violations') icon = '$(warning)';
-    if (icon !== '$(pass)') break;
-  }
-
-  const ct = Array.from(workspaces.values()).filter(
-    (w) => w.hasBasketry,
-  ).length;
-
-  statusBarItem.text = `${icon} Basketry`;
-  statusBarItem.tooltip = `Active in ${ct} workspace folder${
-    ct === 1 ? '' : 's'
-  }`;
-  statusBarItem.show();
-}
+type WorkerStatus = 'idle' | 'running' | 'error' | 'violations';
 
 export function activate(context: vscode.ExtensionContext) {
   channel = vscode.window.createOutputChannel('Basketry');
@@ -47,92 +36,129 @@ export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(diag);
 
   context.subscriptions.push(
-    vscode.commands.registerCommand('basketry-vscode.showErrors', () => {
-      for (const [name, errors] of errorsByWorkspace) {
-        for (const error of errors) {
-          if (error.filepath) {
-            vscode.window
-              .showErrorMessage(
-                `${error.code}: ${error.message} (${error.filepath})`,
-                {
-                  title: 'View File',
-                  action() {
-                    if (error.filepath) {
-                      const Uri = vscode.Uri.file(error.filepath);
-                      vscode.commands.executeCommand<vscode.TextDocumentShowOptions>(
-                        'vscode.open',
-                        Uri,
-                      );
-                    }
-                  },
-                },
-              )
-              .then((x) => x?.action());
-          } else {
-            vscode.window.showErrorMessage(`${error.code}: ${error.message}`);
-          }
-        }
-      }
-    }),
+    vscode.commands.registerCommand(STOP_COMMAND, stopCommand),
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand(START_COMMAND, startCommand),
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand(RESTART_COMMAND, restartCommand),
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand(SHOW_ERROR_COMMAND, showError),
   );
 
   statusBarItem = vscode.window.createStatusBarItem(
     vscode.StatusBarAlignment.Left,
   );
-  statusBarItem.command = 'basketry-vscode.showErrors';
-  context.subscriptions.push(statusBarItem);
-
-  vscode.workspace.workspaceFolders?.forEach((folder) => {
-    const existing = workspaces.get(folder.name);
-    if (existing) {
-      existing.dispose();
-      workspaces.delete(folder.name);
-    }
-
-    workspaces.set(folder.name, new Workspace(context, folder));
-  });
-
-  updateStatus();
 
   context.subscriptions.push(
-    vscode.workspace.onDidChangeWorkspaceFolders((event) => {
-      for (const added of event.added) {
-        const existing = workspaces.get(added.name);
-        if (existing) {
-          existing.dispose();
-          workspaces.delete(added.name);
-        }
-
-        workspaces.set(added.name, new Workspace(context, added));
-      }
-
-      for (const removed of event.removed) {
-        const workspace = workspaces.get(removed.name);
-        if (workspace) {
-          workspace.dispose();
-          workspaces.delete(removed.name);
-        }
-      }
-
-      updateStatus();
+    vscode.workspace.onDidChangeWorkspaceFolders(() => {
+      vscode.commands.executeCommand(RESTART_COMMAND);
     }),
   );
+
+  vscode.commands.executeCommand(START_COMMAND);
 
   log('info', 'Extension activated');
 }
 
 export function deactivate() {
-  for (const workspace of workspaces.values()) {
-    workspace.dispose();
-  }
+  vscode.commands.executeCommand(STOP_COMMAND);
 }
 
-export function resolvePath(
-  folder: vscode.WorkspaceFolder,
-  path: string,
-): string {
-  if (path.startsWith(sep)) return path;
-  return join(folder.uri.fsPath, path);
+async function restartCommand(): Promise<void> {
+  await vscode.commands.executeCommand(STOP_COMMAND);
+  await vscode.commands.executeCommand(START_COMMAND);
+}
+
+async function stopCommand(): Promise<void> {
+  changeListener?.dispose();
+  changeListener === undefined;
+
+  for (const worker of workers) {
+    worker.dispose();
+  }
+
+  workers.clear();
+  stopped = true;
+  updateStatus();
+  log('info', 'Stopped');
+}
+
+async function startCommand(): Promise<void> {
+  stopped = false;
+  for (const workspace of vscode.workspace.workspaceFolders || []) {
+    const config = vscode.Uri.parse(
+      join(workspace.uri.fsPath, 'basketry.config.json'),
+    );
+
+    for (const worker of await Worker.create(workspace, config)) {
+      workers.add(worker);
+    }
+  }
+
+  changeListener?.dispose();
+
+  changeListener = vscode.workspace.onDidChangeTextDocument((event) => {
+    for (const worker of workers) {
+      if (worker.isSource(event.document)) {
+        log(
+          'info',
+          `Source changed: ${event.document.uri.fsPath}`,
+          worker.workspace,
+          worker.config,
+        );
+        worker.check(event.document.getText());
+        break;
+      } else if (!event.document.isDirty && worker.isConfig(event.document)) {
+        log(
+          'info',
+          `Config changed: ${event.document.uri.fsPath}`,
+          worker.workspace,
+          worker.config,
+        );
+        worker.handleConfigChange();
+        if (worker.sourceUri) {
+          vscode.workspace
+            .openTextDocument(worker.sourceUri)
+            .then((doc) => worker.check(doc.getText()));
+        }
+      }
+    }
+  });
+
+  updateStatus();
+  log('info', 'Started');
+}
+
+async function showError(error: BasketryError): Promise<void> {
+  const msg = error.filepath
+    ? `${error.code}: ${error.message} (${error.filepath})`
+    : `${error.code}: ${error.message}`;
+  log('error', msg);
+
+  // vscode.window.showErrorMessage(`${error.code}: ${error.message}`);
+}
+
+function updateStatus() {
+  if (!workers.size || stopped) {
+    statusBarItem.hide();
+    return;
+  }
+  let icon = '$(pass)';
+  for (const status of statusByConfig.values()) {
+    if (status === 'running') icon = '$(loading~spin)';
+    if (status === 'error') icon = '$(error)';
+    if (status === 'violations') icon = '$(warning)';
+    if (icon !== '$(pass)') break;
+  }
+
+  statusBarItem.text = `${icon} Basketry`;
+  statusBarItem.show();
 }
 
 function createDiagnostic(violation: Violation): vscode.Diagnostic {
@@ -163,67 +189,64 @@ function createDiagnostic(violation: Violation): vscode.Diagnostic {
   return diagnostic;
 }
 
-class Workspace implements vscode.Disposable {
-  constructor(
-    context: vscode.ExtensionContext,
-    private readonly folder: vscode.WorkspaceFolder,
+class Worker implements vscode.Disposable {
+  private constructor(
+    readonly workspace: vscode.WorkspaceFolder,
+    readonly config: vscode.Uri,
   ) {
     this.status = 'idle';
-    this.diagnostics = vscode.languages.createDiagnosticCollection(folder.name);
-    context.subscriptions.push(this.diagnostics);
-
-    this.changeListener = vscode.workspace.onDidChangeTextDocument((event) => {
-      if (event.document.uri.fsPath === this.sourceUri?.fsPath) {
-        this.info('Source changed');
-        this.check(event.document.getText());
-      } else if (
-        !event.document.isDirty &&
-        this.sourceUri &&
-        event.document.uri.fsPath === this.configUri.fsPath
-      ) {
-        this.info('Config changed');
-        vscode.workspace
-          .openTextDocument(this.sourceUri)
-          .then((doc) => this.check(doc.getText()));
-      }
-    });
-
-    context.subscriptions.push(this.changeListener);
+    this.diagnostics = vscode.languages.createDiagnosticCollection(
+      config.fsPath,
+    );
 
     this.init();
   }
 
   private timer: NodeJS.Timeout | null = null;
-
   private readonly diagnostics: vscode.DiagnosticCollection;
-  private readonly changeListener: vscode.Disposable;
+
+  static async create(
+    workspace: vscode.WorkspaceFolder,
+    config: vscode.Uri,
+  ): Promise<Worker[]> {
+    const configs = await resolveConfig(config.fsPath, {
+      cwd: workspace.uri.fsPath,
+    });
+    return configs.value.map(
+      (c) =>
+        new Worker(
+          workspace,
+          vscode.Uri.parse(resolve(workspace.uri.fsPath, c)),
+        ),
+    );
+  }
 
   private init() {
-    this.info('Initialize workspace');
+    this.info('Initialize worker');
+    this.handleConfigChange();
     if (this.sourceUri) {
       this.info(`Source: ${this.sourceUri.fsPath}`);
-      this.info(`Config: ${this.configUri.fsPath}`);
+      this.info(`Config: ${this.config.fsPath}`);
       vscode.workspace
         .openTextDocument(this.sourceUri)
         .then((doc) => this.check(doc.getText()));
     }
   }
 
-  private set status(value: WorkspaceStatus) {
-    statusByWorkspace.set(this.folder.name, value);
-    updateStatus();
+  isSource(file: vscode.TextDocument): boolean {
+    return file.uri.fsPath === this._sourceUri?.fsPath;
   }
 
-  get status(): WorkspaceStatus {
-    return statusByWorkspace.get(this.folder.name)!;
+  isConfig(file: vscode.TextDocument): boolean {
+    return file.uri.fsPath === this.config.fsPath;
   }
 
   check(content: string): void {
     if (this.timer) clearTimeout(this.timer);
     this.status = 'running';
-    errorsByWorkspace.delete(this.folder.name);
     this.timer = setTimeout(() => {
       try {
+        this.handleConfigChange();
         if (!this.hasBasketry) {
           this.warning('Basketry not configured');
           this.diagnostics.clear();
@@ -231,12 +254,17 @@ class Workspace implements vscode.Disposable {
           return;
         }
         let stdout: string = '';
-        const command = `node_modules/.bin/basketry --json --validate`;
+        const configPath = relative(
+          this.workspace.uri.fsPath,
+          this.config.fsPath,
+        );
+        const command = `node_modules/.bin/basketry --config ${configPath} --json --validate`;
         this.info(`command: ${command}`);
 
+        // TODO: run the command asynchronously
         stdout = cp
           .execSync(command, {
-            cwd: this.folder.uri.fsPath,
+            cwd: this.workspace.uri.fsPath,
             input: content,
           })
           .toString();
@@ -255,7 +283,9 @@ class Workspace implements vscode.Disposable {
 
         if (errors.length) {
           this.status = 'error';
-          errorsByWorkspace.set(this.folder.name, errors);
+          for (const err of errors) {
+            vscode.commands.executeCommand(SHOW_ERROR_COMMAND, err);
+          }
         } else {
           this.status = violations.length ? 'violations' : 'idle';
         }
@@ -264,64 +294,77 @@ class Workspace implements vscode.Disposable {
         this.error(err.toString());
         this.status = 'error';
         this.diagnostics.clear();
-        errorsByWorkspace.set(this.folder.name, [
-          {
-            code: 'FATAL_ERROR',
-            message: err.message || err.toString(),
-          },
-        ]);
-      }
-
-      for (const e of errorsByWorkspace.get(this.folder.name) || []) {
-        this.error(`${e.code}: ${e.message}`);
+        vscode.commands.executeCommand(SHOW_ERROR_COMMAND, {
+          code: 'FATAL_ERROR',
+          message: err.message || err.toString(),
+        });
       }
     }, 500);
   }
 
-  get sourceUri(): vscode.Uri | undefined {
+  private _sourceUri: vscode.Uri | undefined;
+  public handleConfigChange(): void {
     try {
       const basketryConfig: Config = JSON.parse(
-        readFileSync(this.configUri.fsPath).toString(),
+        readFileSync(this.config.fsPath).toString(),
       );
 
-      if (!basketryConfig.source) return;
-
-      return vscode.Uri.parse(resolvePath(this.folder, basketryConfig.source));
+      if (isLocalConfig(basketryConfig) && basketryConfig.source) {
+        this._sourceUri = vscode.Uri.parse(
+          resolve(this.workspace.uri.fsPath, basketryConfig.source),
+        );
+      } else {
+        this._sourceUri = undefined;
+      }
     } catch {
-      return;
+      this._sourceUri = undefined;
     }
   }
 
-  get configUri(): vscode.Uri {
-    return vscode.Uri.parse(
-      join(this.folder.uri.fsPath, 'basketry.config.json'),
-    );
+  get sourceUri(): vscode.Uri | undefined {
+    return this._sourceUri;
   }
 
   get hasBasketry(): boolean {
     try {
       const isBasketryInstalled = existsSync(
-        join(this.folder.uri.fsPath, 'node_modules', '.bin', 'basketry'),
+        resolve(this.workspace.uri.fsPath, 'node_modules', '.bin', 'basketry'),
       );
-      if (!isBasketryInstalled) return false;
+      if (!isBasketryInstalled) {
+        this.info(`Basketry is not installed`);
+        return false;
+      }
 
       const basketryConfig: Config = JSON.parse(
-        readFileSync(
-          join(this.folder.uri.fsPath, 'basketry.config.json'),
-        ).toString(),
+        readFileSync(this.config.fsPath).toString(),
       );
 
       return (
+        isLocalConfig(basketryConfig) &&
         !!basketryConfig.source &&
-        existsSync(resolvePath(this.folder, basketryConfig.source))
+        existsSync(resolve(this.workspace.uri.fsPath, basketryConfig.source))
       );
-    } catch {
+    } catch (ex) {
+      this.log('error', (ex as any).message);
       return false;
     }
   }
 
+  private set status(value: WorkerStatus) {
+    statusByConfig.set(this.config.fsPath, value);
+    updateStatus();
+  }
+
+  get status(): WorkerStatus {
+    return statusByConfig.get(this.config.fsPath)!;
+  }
+
   private log(level: 'debug' | 'info' | 'warning' | 'error', msg: string) {
-    log(level, msg, this.folder.name);
+    log(level, msg, this.workspace, this.config);
+  }
+
+  private debug(msg: string) {
+    this.log('debug', msg);
   }
 
   private info(msg: string) {
@@ -338,20 +381,35 @@ class Workspace implements vscode.Disposable {
 
   dispose() {
     this.info('Dispose workspace');
-    statusByWorkspace.delete(this.folder.name);
+    statusByConfig.delete(this.config.fsPath);
     this.diagnostics.clear();
     this.diagnostics.dispose();
-    this.changeListener.dispose();
   }
 }
 
 function log(
   level: 'debug' | 'info' | 'warning' | 'error',
   msg: string,
-  folder?: string,
+  workspace?: vscode.WorkspaceFolder,
+  config?: vscode.Uri,
 ) {
+  const name = workspace?.name;
+  const path =
+    workspace && config
+      ? relative(workspace.uri.fsPath, config.fsPath)
+      : undefined;
+  const location =
+    workspace || config
+      ? join(
+          ...[
+            name,
+            path?.substring(0, path.length - '/basketry.config.json'.length),
+          ].filter((x): x is string => !!x),
+        )
+      : undefined;
+
   channel.appendLine(
-    `[${date()}] [${[level, folder].filter((x) => x).join(' | ')}] ${msg}`,
+    `[${date()}] [${[level, location].filter((x) => x).join(' | ')}] ${msg}`,
   );
 }
 

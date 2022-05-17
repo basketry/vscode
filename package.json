@@ -16,8 +16,18 @@
   "contributes": {
     "commands": [
       {
-        "command": "basketry-vscode.showErrors",
-        "title": "Show Errors",
+        "command": "basketry-vscode.start",
+        "title": "Start",
+        "category": "Basketry"
+      },
+      {
+        "command": "basketry-vscode.stop",
+        "title": "Stop",
+        "category": "Basketry"
+      },
+      {
+        "command": "basketry-vscode.restart",
+        "title": "Restart",
         "category": "Basketry"
       }
     ],
