@@ -48,16 +48,16 @@
     "clean:output": "rimraf lib",
     "start": "node ./lib/index.js",
     "prebuild": "run-s -s clean lint",
-    "build": "tsc",
+    "build": "webpack",
+    "build:prod": "webpack --mode production --devtool hidden-source-map",
     "lint:eslint": "eslint src --ext ts",
     "fix:eslint": "eslint --fix src --ext ts",
     "lint:prettier": "prettier -c .",
     "fix:prettier": "prettier -w .",
     "clean:coverage": "rimraf coverage",
     "pretest": "run-s -s clean",
-    "compile": "webpack",
     "watch": "webpack --watch",
-    "package": "webpack --mode production --devtool hidden-source-map"
+    "vscode:prepublish": "run-s build:prod"
   },
   "keywords": [],
   "author": {
