@@ -11,3 +11,10 @@ vsc-extension-quickstart.md
 **/.eslintrc.json
 **/*.map
 **/*.ts
+
+.eslintignore
+.github/**
+.prettierignore
+jest.config.json
+tsconfig.eslint.json
+images/hero.png
