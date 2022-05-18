@@ -2,10 +2,12 @@
   "name": "basketry-vscode",
   "displayName": "Basketry for VSCode",
   "version": "0.0.0",
-  "description": "Base project for creating a console application in Typescript",
+  "description": "View Basketry results directly within your favorite editor!",
+  "publisher": "stevekonves",
   "engines": {
     "vscode": "^1.66.0"
   },
+  "icon": "images/icon.png",
   "categories": [
     "Other"
   ],
@@ -58,8 +60,20 @@
     "package": "webpack --mode production --devtool hidden-source-map"
   },
   "keywords": [],
-  "author": "",
+  "author": {
+    "name": "Steve Konves",
+    "email": "stephen.konves@gmail.com",
+    "url": "https://github.com/skonves"
+  },
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/basketry/vscode.git"
+  },
+  "bugs": {
+    "url": "https://github.com/basketry/vscode/issues"
+  },
+  "homepage": "https://github.com/basketry/vscode/blob/main/README.md",
   "files": [
     "lib"
   ],
