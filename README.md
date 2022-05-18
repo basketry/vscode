@@ -2,7 +2,7 @@
 
 View [Basketry](https://github.com/basketry/basketry) results directly within your favorite editor!
 
-![Basketry hero image](./images/hero.png)
+![Basketry hero image](https://github.com/basketry/vscode/raw/main/images/hero.png)
 
 ## Features
 
