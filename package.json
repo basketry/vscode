@@ -41,7 +41,7 @@
     ]
   },
   "scripts": {
-    "test": "jest",
+    "test": "jest --passWithNoTests",
     "clean": "run-s -s clean:*",
     "lint": "run-s -s lint:*",
     "fix": "run-s -s fix:*",
