@@ -101,6 +101,6 @@
     "webpack-cli": "^4.9.2"
   },
   "dependencies": {
-    "basketry": "^0.0.13"
+    "basketry": "^0.0.15"
   }
 }
