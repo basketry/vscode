@@ -6,7 +6,7 @@ View [Basketry](https://github.com/basketry/basketry) results directly within yo
 
 ## Features
 
-Basketry is the plugable, service-oriented code-generation pipeline for any language. It's written in Typescript, but it can be used to convert any Service Definition in to any programming language.
+Basketry is the pluggable, service-oriented code-generation pipeline for any language. It's written in Typescript, but it can be used to convert any Service Definition in to any programming language.
 
 This extension runs your projects Basketry pipelines in the background and displays any violations directly within VSCode. Results are updated in realtime as you type.
 
