@@ -4,6 +4,10 @@ All notable changes to the "basketry-vscode" extension will be documented in thi
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
-## [Unreleased]
+## [0.0.2]
 
-- Initial release
+- Fixed bug that prevented config files from being correctly validated.
+
+## [0.0.1]
+
+Initial release!

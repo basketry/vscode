@@ -16,9 +16,13 @@ This extension runs your projects Basketry pipelines in the background and displ
 
 ## Release Notes
 
+### 0.0.2
+
+- Fixed bug that prevented config files from being correctly validated.
+
 ### 0.0.1
 
-Initial release!
+- Initial release
 
 ---
 
