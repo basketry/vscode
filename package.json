@@ -36,7 +36,7 @@
     "jsonValidation": [
       {
         "fileMatch": "basketry.config.json",
-        "url": "./node_modules/basketry/lib/config-schema.json"
+        "url": "./lib/config-schema.json"
       }
     ]
   },
@@ -49,7 +49,8 @@
     "start": "node ./lib/index.js",
     "prebuild": "run-s -s clean lint",
     "build": "webpack",
-    "build:prod": "webpack --mode production --devtool hidden-source-map",
+    "build:prod": "run-s -s package copy-schema",
+    "copy-schema": "cp node_modules/basketry/lib/config-schema.json lib/config-schema.json",
     "lint:eslint": "eslint src --ext ts",
     "fix:eslint": "eslint --fix src --ext ts",
     "lint:prettier": "prettier -c .",
@@ -57,6 +58,7 @@
     "clean:coverage": "rimraf coverage",
     "pretest": "run-s -s clean",
     "watch": "webpack --watch",
+    "package": "webpack --mode production --devtool hidden-source-map",
     "vscode:prepublish": "run-s build:prod"
   },
   "keywords": [],
