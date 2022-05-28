@@ -1,7 +1,7 @@
 {
   "name": "basketry-vscode",
   "displayName": "Basketry for VSCode",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "View Basketry results directly within your favorite editor!",
   "publisher": "stevekonves",
   "engines": {
