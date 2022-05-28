@@ -244,7 +244,7 @@ class Worker implements vscode.Disposable {
   check(content: string): void {
     if (this.timer) clearTimeout(this.timer);
     this.status = 'running';
-    this.timer = setTimeout(() => {
+    this.timer = setTimeout(async () => {
       try {
         this.handleConfigChange();
         if (!this.hasBasketry) {
@@ -253,21 +253,27 @@ class Worker implements vscode.Disposable {
           this.status = 'idle';
           return;
         }
-        let stdout: string = '';
         const configPath = relative(
           this.workspace.uri.fsPath,
           this.config.fsPath,
         );
-        const command = `node_modules/.bin/basketry --config ${configPath} --json --validate`;
-        this.info(`command: ${command}`);
+        const command = 'node_modules/.bin/basketry';
+        const args = ['--config', configPath, '--json', '--validate'];
+        this.info(`command: ${[command, ...args].join(' ')}`);
 
-        // TODO: run the command asynchronously
-        stdout = cp
-          .execSync(command, {
-            cwd: this.workspace.uri.fsPath,
-            input: content,
-          })
-          .toString();
+        const { stdout, stderr, code, ms } = await exec(command, args, {
+          cwd: this.workspace.uri.fsPath,
+          input: content,
+        });
+
+        this.info(`Completed in ${ms}ms`);
+
+        if (code === null) {
+          throw new Error('Timeout!');
+        } else if (code !== 0) {
+          throw new Error(stderr);
+        }
+
         this.info(`stdout: ${stdout.trim()}`);
         const output: CliOutput = JSON.parse(stdout);
         const { violations, errors } = output;
@@ -419,4 +425,33 @@ function date() {
     '.' +
     `000${new Date().getMilliseconds()}`.slice(-3)
   );
+}
+
+function exec(
+  command: string,
+  args: string[],
+  options: { cwd: string; input: string },
+): Promise<{
+  stdout: string;
+  stderr: string;
+  code: number | null;
+  ms: number;
+}> {
+  return new Promise((res) => {
+    const s = process.hrtime();
+    const { input, ...rest } = options;
+    let stdout: string = '';
+    let stderr: string = '';
+
+    const proc = cp.spawn(command, args, { timeout: 5000, ...rest });
+    proc.stdin.write(input);
+    proc.stdin.end();
+    proc.stdout.on('data', (data) => (stdout += data.toString()));
+    proc.stderr.on('data', (data) => (stderr += data.toString()));
+    proc.on('close', (code) => {
+      const e = process.hrtime(s);
+      const ms = Math.round((e[0] * 1000000000 + e[1]) / 1000000);
+      res({ stdout, stderr, code, ms });
+    });
+  });
 }
