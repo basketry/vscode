@@ -38,6 +38,20 @@
         "fileMatch": "basketry.config.json",
         "url": "./lib/config-schema.json"
       }
+    ],
+    "views": {
+      "explorer": [
+        {
+          "id": "basketryService",
+          "name": "Basketry"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "basketryService",
+        "contents": "Open a service definition file to get started. [learn more](https://basketry.io/)."
+      }
     ]
   },
   "scripts": {
