@@ -20,7 +20,7 @@ The Service Explorer shows the structure of your service. Clicking on items in t
 
 ## Release Notes
 
-### UNRELEASED
+### 0.0.4 - 2023-03-01
 
 - Added the Basketry service tree view in the Explorer tree view container.
 

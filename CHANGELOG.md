@@ -4,7 +4,7 @@ All notable changes to the "basketry-vscode" extension will be documented in thi
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
-## [UNRELEASED]
+## [0.0.4] - 2023-03-01
 
 - Added the Basketry service tree view in the Explorer tree view container.
 
