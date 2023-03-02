@@ -1,4 +1,3 @@
-import * as cp from 'child_process';
 import { existsSync, readFileSync } from 'fs';
 import { join, relative, resolve } from 'path';
 
@@ -13,6 +12,9 @@ import type {
 
 import { isLocalConfig, resolveConfig } from 'basketry/lib/utils';
 
+import { ServiceDataProvider, ServiceNode } from './service-data-provider';
+import { exec } from './utils';
+
 const STOP_COMMAND = 'basketry-vscode.stop';
 const START_COMMAND = 'basketry-vscode.start';
 const RESTART_COMMAND = 'basketry-vscode.restart';
@@ -21,6 +23,8 @@ const SHOW_ERROR_COMMAND = 'basketry-vscode.showError';
 const workers = new Set<Worker>();
 const statusByConfig = new Map<string, WorkerStatus>();
 
+let treeView: vscode.TreeView<ServiceNode> | undefined;
+let activeTabListener: vscode.Disposable | undefined;
 let changeListener: vscode.Disposable | undefined;
 let statusBarItem: vscode.StatusBarItem;
 let channel: vscode.OutputChannel;
@@ -61,6 +65,11 @@ export function activate(context: vscode.ExtensionContext) {
     }),
   );
 
+  treeView = vscode.window.createTreeView('basketryService', {
+    showCollapseAll: false,
+    treeDataProvider: new ServiceDataProvider(),
+  });
+
   vscode.commands.executeCommand(START_COMMAND);
 
   log('info', 'Extension activated');
@@ -89,6 +98,38 @@ async function stopCommand(): Promise<void> {
   log('info', 'Stopped');
 }
 
+async function reloadTreeView(textEditor: vscode.TextEditor) {
+  const worker = Array.from(workers).find(
+    (w) => w.sourceUri?.fsPath === textEditor.document.uri.fsPath,
+  );
+
+  if (treeView) {
+    const configPath = worker?.config.fsPath;
+    const workspaceRoot = worker?.workspace.uri.fsPath;
+
+    treeView.description = undefined;
+    treeView.message = ' ';
+    treeView = vscode.window.createTreeView('basketryService', {
+      showCollapseAll: true,
+      treeDataProvider: new ServiceDataProvider({
+        document: textEditor.document,
+        configPath,
+        workspaceRoot,
+        onInit: ({ service }) => {
+          if (treeView) {
+            if (service) {
+              treeView.description = `${service.title.value} v${service.majorVersion.value}`;
+            } else {
+              treeView.description = undefined;
+            }
+            treeView.message = undefined;
+          }
+        },
+      }),
+    });
+  }
+}
+
 async function startCommand(): Promise<void> {
   stopped = false;
   for (const workspace of vscode.workspace.workspaceFolders || []) {
@@ -100,6 +141,14 @@ async function startCommand(): Promise<void> {
       workers.add(worker);
     }
   }
+
+  if (vscode.window.activeTextEditor) {
+    reloadTreeView(vscode.window.activeTextEditor);
+  }
+  activeTabListener?.dispose();
+  activeTabListener = vscode.window.onDidChangeActiveTextEditor((event) => {
+    if (event?.document.fileName) reloadTreeView(event);
+  });
 
   changeListener?.dispose();
 
@@ -253,6 +302,14 @@ class Worker implements vscode.Disposable {
           this.status = 'idle';
           return;
         }
+
+        if (
+          vscode.window.activeTextEditor &&
+          this.isSource(vscode.window.activeTextEditor.document)
+        ) {
+          reloadTreeView(vscode.window.activeTextEditor);
+        }
+
         const configPath = relative(
           this.workspace.uri.fsPath,
           this.config.fsPath,
@@ -425,33 +482,4 @@ function date() {
     '.' +
     `000${new Date().getMilliseconds()}`.slice(-3)
   );
-}
-
-function exec(
-  command: string,
-  args: string[],
-  options: { cwd: string; input: string },
-): Promise<{
-  stdout: string;
-  stderr: string;
-  code: number | null;
-  ms: number;
-}> {
-  return new Promise((res) => {
-    const s = process.hrtime();
-    const { input, ...rest } = options;
-    let stdout: string = '';
-    let stderr: string = '';
-
-    const proc = cp.spawn(command, args, { timeout: 5000, ...rest });
-    proc.stdin.write(input);
-    proc.stdin.end();
-    proc.stdout.on('data', (data) => (stdout += data.toString()));
-    proc.stderr.on('data', (data) => (stderr += data.toString()));
-    proc.on('close', (code) => {
-      const e = process.hrtime(s);
-      const ms = Math.round((e[0] * 1000000000 + e[1]) / 1000000);
-      res({ stdout, stderr, code, ms });
-    });
-  });
 }
