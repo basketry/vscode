@@ -6,15 +6,23 @@ View [Basketry](https://github.com/basketry/basketry) results directly within yo
 
 ## Features
 
-Basketry is the pluggable, service-oriented code-generation pipeline for any language. It's written in Typescript, but it can be used to convert any Service Definition in to any programming language.
+Basketry is the pluggable, service-oriented code-generation pipeline for any language. It's written in Typescript, but it can be used to convert any Service Definition into any programming language.
 
-This extension runs your projects Basketry pipelines in the background and displays any violations directly within VSCode. Results are updated in realtime as you type.
+This extension runs your project's Basketry pipelines in the background and displays any violations directly within VSCode. Results are updated in real-time as you type.
+
+The Service Explorer shows the structure of your service. Clicking on items in the explorer will navigate you to where they are defined in your service definition file. The explorer works with any service definition and parser that Basketry supports.
+
+![Basketry service explorer](https://github.com/basketry/vscode/raw/main/images/service-explorer.png)
 
 ## Requirements
 
 [Read the docs](https://github.com/basketry/basketry/blob/main/README.md) to learn how to get a Basketry pipeline setup in your project.
 
 ## Release Notes
+
+### UNRELEASED
+
+- Added the Basketry service tree view in the Explorer tree view container.
 
 ### 0.0.3 - 2022-05-24
 
