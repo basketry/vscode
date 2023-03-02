@@ -4,6 +4,10 @@ All notable changes to the "basketry-vscode" extension will be documented in thi
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [UNRELEASED]
+
+- Added the Basketry service tree view in the Explorer tree view container.
+
 ## [0.0.3] - 2022-05-24
 
 - Spawn command in an async process to improve editor performance
