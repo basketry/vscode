@@ -5,7 +5,7 @@
   "description": "View Basketry results directly within your favorite editor!",
   "publisher": "stevekonves",
   "engines": {
-    "vscode": "^1.66.0"
+    "vscode": "^1.74.0"
   },
   "icon": "images/icon.png",
   "categories": [
