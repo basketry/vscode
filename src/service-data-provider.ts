@@ -6,13 +6,13 @@ import type {
   BasketryError,
   Enum,
   Interface,
-  Literal,
   Method,
   Range,
+  Scalar,
   Service,
   Type,
   TypedValue,
-} from 'basketry/lib/types';
+} from 'basketry';
 import { exec } from './utils';
 
 const childrenByParent: WeakMap<ServiceNode, ServiceNode[]> = new WeakMap();
@@ -184,7 +184,7 @@ export class ServiceDataProvider
     const interfaceNodes: ServiceNode[] = [];
     for (const int of service.interfaces.sort(by((x) => x.name))) {
       const interfaceNode = new ServiceNode(
-        int.name,
+        int.name.value,
         this.collapsed,
         this.sourcePath,
         { iconId: 'symbol-interface' },
@@ -384,7 +384,7 @@ export class ServiceDataProvider
       if (rule.id === 'string-enum') continue;
 
       let loc: string | undefined;
-      let label: string;
+      let label: string | null = null;
       let description: string | undefined;
 
       switch (rule.id) {
@@ -468,19 +468,21 @@ export class ServiceDataProvider
           loc = rule.pattern.loc;
           break;
         }
-        // default: {
-        //   label = rule.id;
-        //   description = undefined;
-        // }
+        default: {
+          label = null;
+          description = undefined;
+        }
       }
 
-      ruleNodes.push(
-        new ServiceNode(label, this.none, this.sourcePath, {
-          location: loc ? decodeRange(loc) : undefined,
-          description,
-          iconId: 'symbol-misc',
-        }),
-      );
+      if (label !== null) {
+        ruleNodes.push(
+          new ServiceNode(label, this.none, this.sourcePath, {
+            location: loc ? decodeRange(loc) : undefined,
+            description,
+            iconId: 'symbol-misc',
+          }),
+        );
+      }
     }
 
     return ruleNodes;
@@ -570,9 +572,9 @@ export class ServiceDataProvider
     );
 
     const memberNodes: ServiceNode[] = [];
-    for (const member of e.values.sort(by((x) => x.value))) {
+    for (const member of e.values.sort(by((x) => x.content.value))) {
       const propNode = new ServiceNode(
-        member.value,
+        member.content.value,
         vscode.TreeItemCollapsibleState.None,
         this.sourcePath,
         {
@@ -625,7 +627,7 @@ export class ServiceNode extends vscode.TreeItem {
 }
 
 const by =
-  <T>(fn: (obj: T) => Literal<string> | string) =>
+  <T>(fn: (obj: T) => Scalar<string> | string) =>
   (a: T, b: T): number => {
     const aa = fn(a);
     const bb = fn(b);
