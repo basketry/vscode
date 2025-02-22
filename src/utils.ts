@@ -16,7 +16,7 @@ export function exec(
     let stdout: string = '';
     let stderr: string = '';
 
-    const proc = cp.spawn(command, args, { timeout: 5000, ...rest });
+    const proc = cp.spawn(command, args, { timeout: 10000, ...rest });
     if (typeof input === 'string') proc.stdin.write(input);
     proc.stdin.end();
     proc.stdout.on('data', (data) => (stdout += data.toString()));
