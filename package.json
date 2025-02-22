@@ -1,6 +1,6 @@
 {
   "name": "basketry-vscode",
-  "displayName": "Basketry for VSCode",
+  "displayName": "Basketry for Visual Studio Code",
   "version": "0.1.0",
   "description": "View Basketry results directly within your favorite editor!",
   "publisher": "stevekonves",
@@ -31,6 +31,11 @@
         "command": "basketry-vscode.restart",
         "title": "Restart",
         "category": "Basketry"
+      },
+      {
+        "command": "basketry-vscode.previewService",
+        "title": "Preview Service",
+        "category": "Basketry"
       }
     ],
     "jsonValidation": [
@@ -40,19 +45,36 @@
       }
     ],
     "views": {
-      "explorer": [
+      "basketry": [
+        {
+          "id": "basketryServices",
+          "name": "Services"
+        },
         {
           "id": "basketryService",
-          "name": "Basketry"
+          "name": "Service Explorer"
         }
       ]
     },
     "viewsWelcome": [
       {
         "view": "basketryService",
-        "contents": "Open a service definition file to get started. [learn more](https://basketry.io/)."
+        "contents": "Open a service definition file to get started. [Learn more](https://basketry.io/)."
+      },
+      {
+        "view": "basketryServices",
+        "contents": "Initialize a Basketry project to get started. [Learn more](https://basketry.io/)."
       }
-    ]
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "basketry",
+          "title": "Basketry",
+          "icon": "resources/icon.svg"
+        }
+      ]
+    }
   },
   "scripts": {
     "test": "jest --passWithNoTests",
@@ -61,10 +83,11 @@
     "fix": "run-s -s fix:*",
     "clean:output": "rimraf lib",
     "start": "node ./lib/index.js",
-    "prebuild": "run-s -s clean lint",
+    "prebuild": "run-s -s clean lint copy:icon",
     "build": "webpack",
-    "build:prod": "run-s -s package copy-schema",
-    "copy-schema": "cp node_modules/basketry/lib/config-schema.json lib/config-schema.json",
+    "build:prod": "run-s -s copy:icon package copy:schema",
+    "copy:schema": "cp node_modules/basketry/lib/config-schema.json lib/config-schema.json",
+    "copy:icon": "mkdir -p lib/resources && cp resources/icon.svg lib/resources/icon.svg",
     "lint:eslint": "eslint src --ext ts",
     "fix:eslint": "eslint --fix src --ext ts",
     "lint:prettier": "prettier -c .",

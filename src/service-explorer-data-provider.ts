@@ -13,24 +13,21 @@ import type {
   Type,
   TypedValue,
 } from 'basketry';
-import { exec } from './utils';
+import { Worker } from './worker';
 
 const childrenByParent: WeakMap<ServiceNode, ServiceNode[]> = new WeakMap();
 
-export class ServiceDataProvider
+export class ServiceExplorerDataProvider
   implements vscode.TreeDataProvider<ServiceNode>
 {
   constructor(options?: {
-    document: vscode.TextDocument;
-    configPath?: string;
-    workspaceRoot?: string;
+    worker: Worker;
     state?: 'defer' | 'expanded' | 'collapsed';
     onInit?(data: { errors: BasketryError[]; service?: Service }): void;
   }) {
-    this.document = options?.document;
-    this.configPath = options?.configPath || '';
-    this.workspaceRoot = options?.workspaceRoot || '';
-    this.sourcePath = options?.document.uri.fsPath || '';
+    this.sourcePath = options?.worker.sourceUri?.fsPath || '';
+    this.service = options?.worker?.service;
+
     this.state = options?.state || 'defer';
     this.onInit = options?.onInit || (() => undefined);
 
@@ -43,9 +40,6 @@ export class ServiceDataProvider
     this.enumsNode = new ServiceNode('Enums', this.expanded, this.sourcePath);
   }
 
-  private readonly document: vscode.TextDocument | undefined;
-  private readonly configPath: string;
-  private readonly workspaceRoot: string;
   private readonly sourcePath: string;
   private readonly state: 'defer' | 'expanded' | 'collapsed';
   private readonly onInit: (data: {
@@ -61,30 +55,6 @@ export class ServiceDataProvider
     try {
       if (this.initialized) return;
 
-      if (!this.configPath) {
-        this.initialized = true;
-        this.onInit({ errors: [] });
-        return;
-      }
-
-      const command = 'node_modules/.bin/basketry';
-      const args = ['ir', '--config', this.configPath];
-
-      const xxx = await exec(command, args, {
-        cwd: this.workspaceRoot,
-        input: this.document?.getText(),
-      });
-
-      const { stdout } = xxx;
-
-      const { errors, service } = JSON.parse(stdout) as {
-        errors: BasketryError[];
-        service: Service;
-      };
-
-      this.service = service;
-      this.errors = errors;
-
       if (this.service) {
         this.loadInterfaceNodes(this.interfacesNode, this.service);
         this.loadTypeNodes(this.typesNode, this.service);
@@ -92,7 +62,7 @@ export class ServiceDataProvider
       }
 
       this.initialized = true;
-      this.onInit({ errors, service });
+      this.onInit({ errors: [], service: this.service });
     } catch (ex) {
       this.service = undefined;
 
@@ -594,7 +564,7 @@ export class ServiceNode extends vscode.TreeItem {
   constructor(
     public readonly label: string,
     public readonly collapsibleState: vscode.TreeItemCollapsibleState,
-    public readonly source: string,
+    public readonly sourcePath: string,
     options?: {
       description?: string;
       location?: Range;
@@ -611,7 +581,7 @@ export class ServiceNode extends vscode.TreeItem {
         title: 'Open',
         command: 'vscode.open',
         arguments: [
-          source,
+          sourcePath,
           <vscode.TextDocumentShowOptions>{
             selection: new vscode.Range(
               options?.location.start.line - 1,
