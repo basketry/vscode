@@ -1,6 +1,6 @@
 # Basketry for Visual Studio Code
 
-View [Basketry](https://github.com/basketry/basketry) results directly within your favorite editor!
+View [Basketry](https://basketry.io) results directly within your favorite editor!
 
 ![Basketry hero image](https://github.com/basketry/vscode/raw/main/images/hero.png)
 
@@ -16,7 +16,7 @@ The Service Explorer shows the structure of your service. Clicking on items in t
 
 ## Requirements
 
-[Read the docs](https://github.com/basketry/basketry/blob/main/README.md) to learn how to get a Basketry pipeline setup in your project.
+[Read the docs](https://basketry.io/docs/category/tutorial---basics) to learn how to get Basketry setup in your project in five minutes or less.
 
 ## Release Notes
 
@@ -39,7 +39,3 @@ The Service Explorer shows the structure of your service. Clicking on items in t
 ### 0.0.1 - 2022-05-03
 
 - Initial release
-
----
-
-Generated with [generator-ts-console](https://www.npmjs.com/package/generator-ts-console) and [generator-code](https://www.npmjs.com/package/generator-code)
