@@ -20,6 +20,10 @@ The Service Explorer shows the structure of your service. Clicking on items in t
 
 ## Release Notes
 
+## 0.1.2 - 2025-02-23
+
+- Minor changes
+
 ## 0.1.1 - 2025-02-23
 
 - Added support for Basketry configs within NPM workspaces.
