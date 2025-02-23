@@ -20,6 +20,13 @@ The Service Explorer shows the structure of your service. Clicking on items in t
 
 ## Release Notes
 
+## 0.1.1 - 2025-02-23
+
+- Added support for Basketry configs within NPM workspaces.
+- Added a Basketry container in the Activity Bar
+  - Displays all services within a VS Code workspace
+  - Service Explorer remains active even if you navigate away from the source file
+
 ## 0.1.0 - 2025-02-06
 
 - Upgrade to support the 0.1.x version of Basketry.

@@ -4,6 +4,13 @@ All notable changes to the "basketry-vscode" extension will be documented in thi
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [0.1.1] - 2025-02-23
+
+- Added support for Basketry configs within NPM workspaces.
+- Added a Basketry container in the Activity Bar
+  - Displays all services within a VS Code workspace
+  - Service Explorer remains active even if you navigate away from the source file
+
 ## [0.1.0] - 2025-02-06
 
 - Upgrade to support the 0.1.x version of Basketry.
