@@ -4,6 +4,10 @@ All notable changes to the "basketry-vscode" extension will be documented in thi
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [0.1.2] - 2025-02-23
+
+- Minor changes
+
 ## [0.1.1] - 2025-02-23
 
 - Added support for Basketry configs within NPM workspaces.
