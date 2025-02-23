@@ -1,5 +1,5 @@
 import { existsSync, readFileSync } from 'fs';
-import { relative, resolve } from 'path';
+import { relative, resolve, sep } from 'path';
 
 import * as vscode from 'vscode';
 
@@ -29,6 +29,7 @@ export class Worker implements vscode.Disposable {
   private constructor(
     readonly workspace: vscode.WorkspaceFolder,
     readonly config: vscode.Uri,
+    readonly cwd: string,
   ) {
     this.status = 'idle';
     this.diagnostics = vscode.languages.createDiagnosticCollection(
@@ -77,13 +78,18 @@ export class Worker implements vscode.Disposable {
     workspace: vscode.WorkspaceFolder,
     config: vscode.Uri,
   ): Promise<Worker[]> {
+    const segs = config.fsPath.split(sep);
+    segs.pop();
+    const configDir = segs.join(sep);
+
     const configs = await resolveConfig(config.fsPath, {
       cwd: workspace.uri.fsPath,
     });
     return configs.value.map((c) => {
       const worker = new Worker(
         workspace,
-        vscode.Uri.parse(resolve(workspace.uri.fsPath, c)),
+        vscode.Uri.parse(resolve(configDir, c)),
+        configDir,
       );
       workers.add(worker);
       for (const handler of workerAddedHandlers) {
@@ -99,6 +105,7 @@ export class Worker implements vscode.Disposable {
     if (this.sourceUri) {
       this.info(`Source: ${this.sourceUri.fsPath}`);
       this.info(`Config: ${this.config.fsPath}`);
+      this.info(`CWD: ${this.cwd}`);
       vscode.workspace
         .openTextDocument(this.sourceUri)
         .then((doc) => this.check(doc.getText()));
@@ -119,7 +126,10 @@ export class Worker implements vscode.Disposable {
     this.timer = setTimeout(async () => {
       try {
         this.handleConfigChange();
-        if (!this.hasBasketry) {
+
+        const command = this.executable;
+
+        if (!command) {
           this.warning('Basketry not configured');
           this.diagnostics.clear();
           this.status = 'idle';
@@ -134,16 +144,13 @@ export class Worker implements vscode.Disposable {
           reloadServiceView(this);
         }
 
-        const configPath = relative(
-          this.workspace.uri.fsPath,
-          this.config.fsPath,
-        );
-        const command = 'node_modules/.bin/basketry';
+        const configPath = relative(this.cwd, this.config.fsPath);
+        log('info', `Checking ${configPath}`, this.workspace, this.config);
         const args = ['--config', configPath, '--json', '--validate'];
         this.info(`command: ${[command, ...args].join(' ')}`);
 
         const { stdout, stderr, code, ms } = await exec(command, args, {
-          cwd: this.workspace.uri.fsPath,
+          cwd: this.cwd,
           input: content,
         });
 
@@ -152,7 +159,7 @@ export class Worker implements vscode.Disposable {
           command,
           ['ir', '--config', configPath],
           {
-            cwd: this.workspace.uri.fsPath,
+            cwd: this.cwd,
             input: content,
           },
         );
@@ -216,7 +223,7 @@ export class Worker implements vscode.Disposable {
 
       if (isLocalConfig(basketryConfig) && basketryConfig.source) {
         this._sourceUri = vscode.Uri.parse(
-          resolve(this.workspace.uri.fsPath, basketryConfig.source),
+          resolve(this.cwd, basketryConfig.source),
         );
       } else {
         this._sourceUri = undefined;
@@ -230,28 +237,43 @@ export class Worker implements vscode.Disposable {
     return this._sourceUri;
   }
 
-  get hasBasketry(): boolean {
+  /** Gets the path to the basketry executable */
+  get executable(): string | undefined {
     try {
-      const isBasketryInstalled = existsSync(
-        resolve(this.workspace.uri.fsPath, 'node_modules', '.bin', 'basketry'),
+      const root = resolve(
+        this.workspace.uri.fsPath,
+        'node_modules',
+        '.bin',
+        'basketry',
       );
-      if (!isBasketryInstalled) {
+      const npmWs = resolve(this.cwd, 'node_modules', '.bin', 'npm');
+
+      const rootInstall = existsSync(root);
+      const npmWsInstall = existsSync(npmWs);
+
+      if (!rootInstall && !npmWsInstall) {
         this.info(`Basketry is not installed`);
-        return false;
+        return undefined;
       }
+
+      const executablePath = rootInstall ? root : npmWs;
 
       const basketryConfig: Config = JSON.parse(
         readFileSync(this.config.fsPath).toString(),
       );
 
-      return (
+      if (
         isLocalConfig(basketryConfig) &&
         !!basketryConfig.source &&
-        existsSync(resolve(this.workspace.uri.fsPath, basketryConfig.source))
-      );
+        existsSync(resolve(this.cwd, basketryConfig.source))
+      ) {
+        return executablePath;
+      } else {
+        return undefined;
+      }
     } catch (ex) {
       this.log('error', (ex as any).message);
-      return false;
+      return undefined;
     }
   }
 

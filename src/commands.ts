@@ -1,3 +1,4 @@
+import { readFile } from 'fs/promises';
 import { join } from 'path';
 
 import * as vscode from 'vscode';
@@ -71,11 +72,26 @@ export async function stopCommand(): Promise<void> {
 export async function startCommand(): Promise<void> {
   _stopped = false;
   for (const workspace of vscode.workspace.workspaceFolders || []) {
-    const config = vscode.Uri.parse(
+    let npmPkg: { workspaces?: string[] } | undefined;
+    try {
+      const pkg = await readFile(
+        vscode.Uri.parse(join(workspace.uri.fsPath, 'package.json')).fsPath,
+        'utf-8',
+      );
+      npmPkg = JSON.parse(pkg);
+    } catch (e) {}
+
+    for (const npmWorkspace of npmPkg?.workspaces || []) {
+      const workspaceConfig = vscode.Uri.parse(
+        join(workspace.uri.fsPath, npmWorkspace, 'basketry.config.json'),
+      );
+      await Worker.create(workspace, workspaceConfig);
+    }
+
+    const rootConfig = vscode.Uri.parse(
       join(workspace.uri.fsPath, 'basketry.config.json'),
     );
-
-    await Worker.create(workspace, config);
+    await Worker.create(workspace, rootConfig);
   }
 
   changeListener?.dispose();
