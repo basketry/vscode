@@ -6,12 +6,12 @@ import type {
   BasketryError,
   Enum,
   Interface,
+  MemberValue,
   Method,
   Range,
-  Scalar,
   Service,
+  StringLiteral,
   Type,
-  TypedValue,
 } from 'basketry';
 import { Worker } from './worker';
 
@@ -172,11 +172,11 @@ export class ServiceExplorerDataProvider
       const methodNode = new ServiceNode(
         method.name.value,
         this.collapsed,
-        this.sourcePath,
+        this.sourcePath, // TODO: get correct source path from multi-source service
         {
-          location: method.loc ? decodeRange(method.loc) : undefined,
+          location: method.loc ? decodeRange(method.loc).range : undefined,
           description: `(${method.parameters
-            .map((p) => `${p.name.value}${isRequired(p) ? '*' : ''}`)
+            .map((p) => `${p.name.value}${isRequired(p.value) ? '*' : ''}`)
             .join(', ')})`,
           iconId: 'symbol-method',
         },
@@ -192,15 +192,15 @@ export class ServiceExplorerDataProvider
 
       const methodReturnTypeNode = new ServiceNode(
         'Returns',
-        method.returnType ? this.expanded : this.none,
+        method.returns ? this.expanded : this.none,
         this.sourcePath,
         {
-          description: method.returnType ? undefined : 'void',
+          description: method.returns ? undefined : 'void',
         },
       );
-      if (method.returnType) {
-        const subNodes = this.buildTypedValueNodes(method.returnType);
-        const ruleNodes = this.buildRuleNodes(method.returnType);
+      if (method.returns) {
+        const subNodes = this.buildTypedValueNodes(method.returns.value);
+        const ruleNodes = this.buildRuleNodes(method.returns.value);
         if (ruleNodes.length) {
           const returnTypeRulesNode = new ServiceNode(
             'Rules',
@@ -221,7 +221,7 @@ export class ServiceExplorerDataProvider
     childrenByParent.set(parentNode, methodNodes);
   }
 
-  private buildTypedValueDescription(typedValue: TypedValue): string {
+  private buildTypedValueDescription(typedValue: MemberValue): string {
     return `${typedValue.typeName.value}${typedValue.isArray ? '[]' : ''}${
       isRequired(typedValue) ? '*' : ''
     }`;
@@ -234,10 +234,10 @@ export class ServiceExplorerDataProvider
       const paramNode = new ServiceNode(
         param.name.value,
         this.collapsed,
-        this.sourcePath,
+        this.sourcePath, // TODO: get correct source path from multi-source service
         {
-          location: param.loc ? decodeRange(param.loc) : undefined,
-          description: this.buildTypedValueDescription(param),
+          location: param.loc ? decodeRange(param.loc).range : undefined,
+          description: this.buildTypedValueDescription(param.value),
           iconId: 'symbol-parameter',
         },
       );
@@ -249,9 +249,9 @@ export class ServiceExplorerDataProvider
       //   this.sourcePath,
       // );
 
-      subNodes.push(...this.buildTypedValueNodes(param));
+      subNodes.push(...this.buildTypedValueNodes(param.value));
 
-      const ruleNodes = this.buildRuleNodes(param);
+      const ruleNodes = this.buildRuleNodes(param.value);
       if (ruleNodes.length) {
         const paramRulesNode = new ServiceNode(
           'Rules',
@@ -267,10 +267,10 @@ export class ServiceExplorerDataProvider
     childrenByParent.set(parentNode, paramNodes);
   }
 
-  private buildTypedValueNodes(typedValue: TypedValue): ServiceNode[] {
+  private buildTypedValueNodes(typedValue: MemberValue): ServiceNode[] {
     const nodes: ServiceNode[] = [];
 
-    if (typedValue.isPrimitive) {
+    if (typedValue.kind === 'PrimitiveValue') {
       let iconId: string;
       switch (typedValue.typeName.value) {
         case 'boolean':
@@ -298,9 +298,10 @@ export class ServiceExplorerDataProvider
           break;
       }
       nodes.push(
+        // TODO: get correct source path from multi-source service
         new ServiceNode(typedValue.typeName.value, this.none, this.sourcePath, {
           location: typedValue.typeName.loc
-            ? decodeRange(typedValue.typeName.loc)
+            ? decodeRange(typedValue.typeName.loc).range
             : undefined,
           iconId,
         }),
@@ -318,10 +319,10 @@ export class ServiceExplorerDataProvider
           new ServiceNode(
             typedValue.typeName.value,
             this.none,
-            this.sourcePath,
+            this.sourcePath, // TODO: get correct source path from multi-source service
             {
               location: typedValue.typeName.loc
-                ? decodeRange(typedValue.typeName.loc)
+                ? decodeRange(typedValue.typeName.loc).range
                 : undefined,
               iconId: 'symbol-object',
             },
@@ -348,91 +349,89 @@ export class ServiceExplorerDataProvider
     }
   }
 
-  private buildRuleNodes(typedValue: TypedValue): ServiceNode[] {
+  private buildRuleNodes(typedValue: MemberValue): ServiceNode[] {
     const ruleNodes: ServiceNode[] = [];
     for (const rule of typedValue.rules) {
-      if (rule.id === 'string-enum') continue;
-
       let loc: string | undefined;
       let label: string | null = null;
       let description: string | undefined;
 
       switch (rule.id) {
-        case 'array-max-items': {
+        case 'ArrayMaxItems': {
           label = 'Array max items';
           description = `${rule.max.value}`;
           loc = rule.max.loc;
           break;
         }
-        case 'array-min-items': {
-          label = 'Array min itmes';
+        case 'ArrayMinItems': {
+          label = 'Array min items';
           description = `${rule.min.value}`;
           loc = rule.min.loc;
           break;
         }
-        case 'array-unique-items': {
+        case 'ArrayUniqueItems': {
           label = 'Array unique items';
           description = `${rule.required}`;
           break;
         }
-        case 'number-gt': {
+        case 'NumberGT': {
           label = 'Greater than';
           description = `${rule.value.value}`;
           loc = rule.value.loc;
           break;
         }
-        case 'number-gte': {
+        case 'NumberGTE': {
           label = 'Greater than or equal to';
           description = `${rule.value.value}`;
           loc = rule.value.loc;
           break;
         }
-        case 'number-lt': {
+        case 'NumberLT': {
           label = 'Less than';
           description = `${rule.value.value}`;
           loc = rule.value.loc;
           break;
         }
-        case 'number-lte': {
+        case 'NumberLTE': {
           label = 'Less than or equal to';
           description = `${rule.value.value}`;
           loc = rule.value.loc;
           break;
         }
-        case 'number-multiple-of': {
+        case 'NumberMultipleOf': {
           label = 'Multiple of';
           description = `${rule.value.value}`;
           loc = rule.value.loc;
           break;
         }
-        case 'required': {
-          label = 'Required';
-          description = 'true';
-          break;
-        }
+        // case 'required': {
+        //   label = 'Required';
+        //   description = 'true';
+        //   break;
+        // }
         // case 'string-enum': {
         //   label = 'Enum';
         //   break;
         // }
-        case 'string-format': {
+        case 'StringFormat': {
           label = 'Format';
           description = `${rule.format.value}`;
           loc = rule.format.loc;
           break;
         }
-        case 'string-max-length': {
+        case 'StringMaxLength': {
           label = 'Max length';
           description = `${rule.length.value}`;
           loc = rule.length.loc;
           break;
         }
-        case 'string-min-length': {
+        case 'StringMinLength': {
           label = 'Min length';
           description = `${rule.length.value}`;
           loc = rule.length.loc;
           break;
         }
-        case 'string-pattern': {
+        case 'StringPattern': {
           label = 'Pattern';
           description = `${rule.pattern.value}`;
           loc = rule.pattern.loc;
@@ -446,8 +445,9 @@ export class ServiceExplorerDataProvider
 
       if (label !== null) {
         ruleNodes.push(
+          // TODO: get correct source path from multi-source service
           new ServiceNode(label, this.none, this.sourcePath, {
-            location: loc ? decodeRange(loc) : undefined,
+            location: loc ? decodeRange(loc).range : undefined,
             description,
             iconId: 'symbol-misc',
           }),
@@ -470,10 +470,10 @@ export class ServiceExplorerDataProvider
     const typeNode = new ServiceNode(
       type.name.value,
       this.collapsed,
-      this.sourcePath,
+      this.sourcePath, // TODO: get correct source path from multi-source service
       {
         iconId: 'symbol-object',
-        location: type.loc ? decodeRange(type.loc) : undefined,
+        location: type.loc ? decodeRange(type.loc).range : undefined,
       },
     );
 
@@ -489,11 +489,11 @@ export class ServiceExplorerDataProvider
       const propNode = new ServiceNode(
         prop.name.value,
         this.collapsed,
-        this.sourcePath,
+        this.sourcePath, // TODO: get correct source path from multi-source service
         {
           iconId: 'symbol-property',
-          description: this.buildTypedValueDescription(prop),
-          location: prop.loc ? decodeRange(prop.loc) : undefined,
+          description: this.buildTypedValueDescription(prop.value),
+          location: prop.loc ? decodeRange(prop.loc).range : undefined,
         },
       );
       propNodes.push(propNode);
@@ -504,9 +504,9 @@ export class ServiceExplorerDataProvider
       //   this.sourcePath,
       // );
       // this.loadTypedValueNodes(propTypeNode, prop);
-      subNodes.push(...this.buildTypedValueNodes(prop));
+      subNodes.push(...this.buildTypedValueNodes(prop.value));
 
-      const ruleNodes = this.buildRuleNodes(prop);
+      const ruleNodes = this.buildRuleNodes(prop.value);
       if (ruleNodes.length) {
         const propRulesNode = new ServiceNode(
           'Rules',
@@ -534,22 +534,22 @@ export class ServiceExplorerDataProvider
     const enumNode = new ServiceNode(
       e.name.value,
       vscode.TreeItemCollapsibleState.Collapsed,
-      this.sourcePath,
+      this.sourcePath, // TODO: get correct source path from multi-source service
       {
         iconId: 'symbol-enum',
-        location: e.loc ? decodeRange(e.loc) : undefined,
+        location: e.loc ? decodeRange(e.loc).range : undefined,
       },
     );
 
     const memberNodes: ServiceNode[] = [];
-    for (const member of e.values.sort(by((x) => x.content.value))) {
+    for (const member of e.members.sort(by((m) => m.content.value))) {
       const propNode = new ServiceNode(
         member.content.value,
         vscode.TreeItemCollapsibleState.None,
-        this.sourcePath,
+        this.sourcePath, // TODO: get correct source path from multi-source service
         {
           iconId: 'symbol-enum-member',
-          location: member.loc ? decodeRange(member.loc) : undefined,
+          location: member.loc ? decodeRange(member.loc).range : undefined,
         },
       );
       memberNodes.push(propNode);
@@ -597,7 +597,7 @@ export class ServiceNode extends vscode.TreeItem {
 }
 
 const by =
-  <T>(fn: (obj: T) => Scalar<string> | string) =>
+  <T>(fn: (obj: T) => StringLiteral | string) =>
   (a: T, b: T): number => {
     const aa = fn(a);
     const bb = fn(b);

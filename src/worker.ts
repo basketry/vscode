@@ -1,5 +1,6 @@
-import { existsSync, readFileSync } from 'fs';
-import { relative, resolve, sep } from 'path';
+import { readFileSync } from 'fs';
+import { dirname, resolve } from 'path';
+import { execSync } from 'child_process';
 
 import * as vscode from 'vscode';
 
@@ -78,18 +79,15 @@ export class Worker implements vscode.Disposable {
     workspace: vscode.WorkspaceFolder,
     config: vscode.Uri,
   ): Promise<Worker[]> {
-    const segs = config.fsPath.split(sep);
-    segs.pop();
-    const configDir = segs.join(sep);
-
     const configs = await resolveConfig(config.fsPath, {
       cwd: workspace.uri.fsPath,
     });
     return configs.value.map((c) => {
+      const configUri = vscode.Uri.parse(c);
       const worker = new Worker(
         workspace,
-        vscode.Uri.parse(resolve(configDir, c)),
-        configDir,
+        configUri,
+        dirname(configUri.fsPath),
       );
       workers.add(worker);
       for (const handler of workerAddedHandlers) {
@@ -127,10 +125,8 @@ export class Worker implements vscode.Disposable {
       try {
         this.handleConfigChange();
 
-        const command = this.executable;
-
-        if (!command) {
-          this.warning('Basketry not configured');
+        if (!this.isBasketryInstalled) {
+          this.warning('Basketry not installed');
           this.diagnostics.clear();
           this.status = 'idle';
           return;
@@ -144,20 +140,28 @@ export class Worker implements vscode.Disposable {
           reloadServiceView(this);
         }
 
-        const configPath = relative(this.cwd, this.config.fsPath);
+        const configPath = this.config.fsPath;
         log('info', `Checking ${configPath}`, this.workspace, this.config);
-        const args = ['--config', configPath, '--json', '--validate'];
-        this.info(`command: ${[command, ...args].join(' ')}`);
+        const args = [
+          '--no',
+          'basketry',
+          '--',
+          '--config',
+          configPath,
+          '--json',
+          '--validate',
+        ];
+        this.info(`command: ${['npx', ...args].join(' ')}`);
 
-        const { stdout, stderr, code, ms } = await exec(command, args, {
+        const { stdout, stderr, code, ms } = await exec('npx', args, {
           cwd: this.cwd,
           input: content,
         });
 
         // TODO: do in parallel with the validation above
         const serviceResult = await exec(
-          command,
-          ['ir', '--config', configPath],
+          'npx',
+          ['--no', 'basketry', '--', 'ir', '--config', configPath],
           {
             cwd: this.cwd,
             input: content,
@@ -237,43 +241,15 @@ export class Worker implements vscode.Disposable {
     return this._sourceUri;
   }
 
-  /** Gets the path to the basketry executable */
-  get executable(): string | undefined {
+  get isBasketryInstalled(): boolean {
     try {
-      const root = resolve(
-        this.workspace.uri.fsPath,
-        'node_modules',
-        '.bin',
-        'basketry',
-      );
-      const npmWs = resolve(this.cwd, 'node_modules', '.bin', 'npm');
-
-      const rootInstall = existsSync(root);
-      const npmWsInstall = existsSync(npmWs);
-
-      if (!rootInstall && !npmWsInstall) {
-        this.info(`Basketry is not installed`);
-        return undefined;
-      }
-
-      const executablePath = rootInstall ? root : npmWs;
-
-      const basketryConfig: Config = JSON.parse(
-        readFileSync(this.config.fsPath).toString(),
-      );
-
-      if (
-        isLocalConfig(basketryConfig) &&
-        !!basketryConfig.source &&
-        existsSync(resolve(this.cwd, basketryConfig.source))
-      ) {
-        return executablePath;
-      } else {
-        return undefined;
-      }
-    } catch (ex) {
-      this.log('error', (ex as any).message);
-      return undefined;
+      execSync('npx --no basketry -- --version', {
+        stdio: 'ignore',
+        cwd: this.cwd,
+      });
+      return true;
+    } catch {
+      return false;
     }
   }
 
