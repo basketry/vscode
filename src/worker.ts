@@ -1,5 +1,5 @@
 import { readFileSync } from 'fs';
-import { dirname, resolve } from 'path';
+import { dirname, resolve, isAbsolute } from 'path';
 import { execSync } from 'child_process';
 
 import * as vscode from 'vscode';
@@ -191,8 +191,12 @@ export class Worker implements vscode.Disposable {
 
         this.diagnostics.clear();
         for (const document of documents) {
+          const documentPath = isAbsolute(document)
+            ? document
+            : resolve(this.cwd, document);
+
           this.diagnostics.set(
-            vscode.Uri.parse(document),
+            vscode.Uri.file(documentPath),
             violations.map(createDiagnostic),
           );
         }
