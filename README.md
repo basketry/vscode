@@ -20,6 +20,14 @@ The Service Explorer shows the structure of your service. Clicking on items in t
 
 ## Release Notes
 
+## 0.2.1 - 2025-08-16
+
+- Fix bug causing violations to be misreported with absolute file paths.
+
+## 0.2.0 - 2025-08-12
+
+- Support Basketry 0.2
+
 ## 0.1.2 - 2025-02-23
 
 - Minor changes
