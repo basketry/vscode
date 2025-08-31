@@ -36,6 +36,14 @@ export function activate(context: vscode.ExtensionContext) {
 
   vscode.commands.executeCommand(START_COMMAND);
 
+  context.subscriptions.push(
+    vscode.workspace.onDidChangeConfiguration((e) => {
+      if (e.affectsConfiguration('basketry.engine')) {
+        vscode.commands.executeCommand(RESTART_COMMAND);
+      }
+    }),
+  );
+
   log('info', 'Extension activated');
 }
 

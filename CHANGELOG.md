@@ -4,6 +4,10 @@ All notable changes to the "basketry-vscode" extension will be documented in thi
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [0.2.2] - 2025-08-31
+
+- Add option to support the experimental JSON-RPC engine.
+
 ## [0.2.1] - 2025-08-16
 
 - Fix bug causing violations to be misreported with absolute file paths.

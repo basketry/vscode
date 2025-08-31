@@ -140,33 +140,37 @@ export class Worker implements vscode.Disposable {
           reloadServiceView(this);
         }
 
+        const engine = vscode.workspace
+          .getConfiguration('basketry')
+          .get<string | undefined>('engine');
+
         const configPath = this.config.fsPath;
         log('info', `Checking ${configPath}`, this.workspace, this.config);
-        const args = [
+        const validateArgs = [
           '--no',
           'basketry',
           '--',
+          'validate',
           '--config',
           configPath,
           '--json',
-          '--validate',
         ];
-        this.info(`command: ${['npx', ...args].join(' ')}`);
+        if (engine) validateArgs.push('--engine', engine);
+        this.info(`command: ${['npx', ...validateArgs].join(' ')}`);
 
-        const { stdout, stderr, code, ms } = await exec('npx', args, {
+        const { stdout, stderr, code, ms } = await exec('npx', validateArgs, {
           cwd: this.cwd,
           input: content,
         });
 
+        const irArgs = ['--no', 'basketry', '--', 'ir', '--config', configPath];
+        if (engine) irArgs.push('--engine', engine);
+
         // TODO: do in parallel with the validation above
-        const serviceResult = await exec(
-          'npx',
-          ['--no', 'basketry', '--', 'ir', '--config', configPath],
-          {
-            cwd: this.cwd,
-            input: content,
-          },
-        );
+        const serviceResult = await exec('npx', irArgs, {
+          cwd: this.cwd,
+          input: content,
+        });
 
         this.info(`Completed in ${ms}ms`);
 
