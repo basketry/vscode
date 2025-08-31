@@ -16,6 +16,29 @@
   ],
   "main": "./lib/extension.js",
   "contributes": {
+    "configuration": {
+      "title": "Basketry",
+      "properties": {
+        "basketry.engine": {
+          "type": "string",
+          "default": "",
+          "enum": [
+            "",
+            "rpc"
+          ],
+          "enumItemLabels": [
+            "Module",
+            "RPC (experimental)"
+          ],
+          "markdownEnumDescriptions": [
+            "Use the default module-based engine",
+            "Use the experimental JSON-RPC engine"
+          ],
+          "markdownDescription": "Specifies which engine to use when running Basketry.",
+          "scope": "window"
+        }
+      }
+    },
     "commands": [
       {
         "command": "basketry-vscode.start",

@@ -20,6 +20,10 @@ The Service Explorer shows the structure of your service. Clicking on items in t
 
 ## Release Notes
 
+## 0.2.2 - 2025-08-31
+
+- Add option to support the experimental JSON-RPC engine.
+
 ## 0.2.1 - 2025-08-16
 
 - Fix bug causing violations to be misreported with absolute file paths.
